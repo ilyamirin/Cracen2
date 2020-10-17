@@ -1,39 +1,15 @@
 import os
-import random
 from hashlib import md5
 from typing import Iterable
+import yaml
+from pymongo import MongoClient
 
-db = list()
+config = {}
+with open("config.yml", 'r') as stream:
+    config = yaml.safe_load(stream)
 
-for i in range(0, 100000):
-    db.append({'id': str(random.randint(0, 1000000)),
-               'email': str(random.randint(0, 1000000)),
-               'password': str(random.randint(0, 1000000))})
-
-db.append({'id': '-1', 'email': 'ilya.mirin@gmail.com', 'password': '100'})
-
-
-def push_files(cursor: Iterable, db_path: str):
-    if not db_path.endswith(os.sep):
-        db_path = db_path + os.sep
-    c = 0
-    for row in cursor:
-        h = md5(row['email'].encode('utf-8')).hexdigest()[:5]
-        to_write = ';'.join([row['email'], row['password'], '\n'])
-        if not os.path.exists(db_path + h):
-            f = open(db_path + h, "w+")
-            f.write(to_write)
-            f.close()
-        else:
-            f = open(db_path + h, "a+")
-            f.write(to_write)
-            f.close()
-        c += 1
-        if c % 1000 == 0:
-            print('C:', c)
-
-
-push_files(db, './data/')
+client = MongoClient(config['mongodb'])
+email_leaks_collection = client.cracen.email_leaks_collection
 
 
 def find_email(db_path: str, email: str) -> list:
@@ -50,4 +26,46 @@ def find_email(db_path: str, email: str) -> list:
     return result
 
 
-emails = find_email('./data/', 'ilya.mirin@gmail.com')
+def push_files(cursor: Iterable, db_path: str):
+    if not db_path.endswith(os.sep):
+        db_path = db_path + os.sep
+    c = 0
+    for row in cursor:
+        row['email'] = str(row['email'])
+        if row['email'].count(';'):
+            row['password'] = row['email'].split(';')[1]
+            row['email'] = row['email'].split(';')[0]
+        else:
+            try:
+                row['password'] = str(row['password'])
+            except KeyError:
+                #print('Something goes wrong with:', row)
+                continue
+        try:
+            h = md5(row['email'].strip().encode('utf-8')).hexdigest()[:5]
+            if row['password'] in find_email('data' + os.sep, row['email']):
+                email_leaks_collection.delete_one({"_id": row['_id']})
+                continue
+            to_write = ';'.join([row['email'], row['password'], '\n'])
+            if not os.path.exists(db_path + h):
+                f = open(db_path + h, "w+")
+                f.write(to_write)
+                f.close()
+            else:
+                f = open(db_path + h, "a+")
+                f.write(to_write)
+                f.close()
+            email_leaks_collection.delete_one({"_id": row['_id']})
+            c += 1
+            if c % 1000 == 0:
+                print('C:', c, ',', c / email_leaks_collection.count({}), '%')
+        except Exception:
+            1
+        #    print('Something goes wrong with:', row)
+
+
+push_files(email_leaks_collection.find({}), 'data' + os.sep)
+
+
+emails = find_email('data' + os.sep, 'ilya.mirin@gmail.com')
+emails = find_email('data' + os.sep, '0000000000000000000000000000000000000000000@hotmail.com')

@@ -1,3 +1,6 @@
+import os
+from hashlib import md5
+
 import telebot
 import logging
 import yaml
@@ -16,11 +19,21 @@ config = {}
 with open("config.yml", 'r') as stream:
     config = yaml.safe_load(stream)
 
-client = MongoClient(config['mongodb'])
-db = client.cracen
-email_leaks_collection = db.email_leaks_collection
-
 bot = telebot.TeleBot(config['token'])
+
+
+def find_email(db_path: str, email: str) -> list:
+    h = md5(email.encode('utf-8')).hexdigest()[:5]
+    result = list()
+    if not os.path.exists(db_path + h):
+        return result
+    else:
+        f = open(db_path + h, "r")
+        for line in f.readlines():
+            if line.count(email) > 0:
+                result.append(line.split(';')[1])
+        f.close()
+    return result
 
 
 @bot.message_handler(commands=['start', 'help'])
@@ -36,14 +49,14 @@ def get_text_messages(message):
     try:
         m = re.search(r"(^[a-zA-ZА-я0-9_.+-]+@[a-zA-ZА-я0-9-]+\.[a-zA-ZА-я0-9-.]+$)", str(message.text).strip())
         if m:
-            email = email_leaks_collection.find_one({'email': m.group()})
-            if email is not None:#emails.count() > 0:
-                #for email in emails:
-                bot.send_message(message.from_user.id, hide_password(email['password']))
+            emails = find_email('data' + os.sep, m.group())
+            if emails.count() > 0:
+                for email in emails:
+                    bot.send_message(message.from_user.id, hide_password(email['password']))
             else:
                 bot.send_message(message.from_user.id, "Этой почты нет в моей базе утечек")
         else:
-            bot.send_message(message.from_user.id, "Этот текст \"{%s}\" не похож на электронную почту." % message.text)
+            bot.send_message(message.from_user.id, "Этот текст \"%s\" не похож на волшебное слово." % message.text)
     except Exception as e:
         logging.error('Error while sending text', exc_info=e)
 
