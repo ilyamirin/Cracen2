@@ -19,14 +19,12 @@ def find_email(db_path: str, email: str) -> list:
     if not os.path.exists(db_path + h):
         return result
     else:
-        stop_flag = False
         f = open(db_path + h, "r")
         for line in f.readlines():
-            if line.startswith(email) > 0:
-                stop_flag = True
-                result.append(line.split(';')[1])
-            elif stop_flag:
+            if line[0] > email[0]:
                 break
+            if line.startswith(email) > 0:
+                result.append(line.split(';')[1])
         f.close()
     return result
 
@@ -74,5 +72,6 @@ def push_files(cursor: Iterable, db_path: str):
 push_files(email_leaks_collection.find({}), 'data' + os.sep)
 
 
-emails = find_email('data' + os.sep, 'ilya.mirin@gmail.com')
-emails = find_email('data' + os.sep, '0000000000000000000000000000000000000000000@hotmail.com')
+find_email('data' + os.sep, 'ilya.mirin@gmail.com')
+find_email('data' + os.sep, '0000000000000000000000000000000000000000000@hotmail.com')
+find_email('data' + os.sep, 'asad_khan321@hotmail.couk')

@@ -26,14 +26,12 @@ def find_passwords(db_path: str, email: str) -> list:
     if not os.path.exists(db_path + h):
         return result
     else:
-        stop_flag = False
         f = open(db_path + h, "r")
         for line in f.readlines():
-            if line.startswith(email) > 0:
-                stop_flag = True
-                result.append(line.split(';')[1])
-            elif stop_flag:
+            if line[0] > email[0]:
                 break
+            if line.startswith(email) > 0:
+                result.append(line.split(';')[1])
         f.close()
     return result
 
