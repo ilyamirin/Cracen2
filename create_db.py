@@ -3,6 +3,7 @@ from hashlib import md5
 from typing import Iterable
 import yaml
 from pymongo import MongoClient
+from datetime import datetime
 
 config = {}
 with open("config.yml", 'r') as stream:
@@ -18,10 +19,14 @@ def find_email(db_path: str, email: str) -> list:
     if not os.path.exists(db_path + h):
         return result
     else:
+        stop_flag = False
         f = open(db_path + h, "r")
         for line in f.readlines():
-            if line.count(email) > 0:
+            if line.startswith(email) > 0:
+                stop_flag = True
                 result.append(line.split(';')[1])
+            elif stop_flag:
+                break
         f.close()
     return result
 
@@ -42,6 +47,10 @@ def push_files(cursor: Iterable, db_path: str):
                 #print('Something goes wrong with:', row)
                 continue
         try:
+            c += 1
+            if c % 1000000 == 0:
+                print(c, datetime.utcnow())
+
             h = md5(row['email'].strip().encode('utf-8')).hexdigest()[:5]
             if row['password'] in find_email('data' + os.sep, row['email']):
                 email_leaks_collection.delete_one({"_id": row['_id']})
@@ -56,9 +65,6 @@ def push_files(cursor: Iterable, db_path: str):
                 f.write(to_write)
                 f.close()
             email_leaks_collection.delete_one({"_id": row['_id']})
-            c += 1
-            if c % 1000 == 0:
-                print('C:', c, ',', c / email_leaks_collection.count({}), '%')
         except Exception:
             1
         #    print('Something goes wrong with:', row)
