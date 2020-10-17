@@ -36,6 +36,7 @@ def push_files(cursor: Iterable, db_path: str):
         db_path = db_path + os.sep
     c = 0
     for row in cursor:
+
         row['email'] = str(row['email'])
         if row['email'].count(';'):
             row['password'] = row['email'].split(';')[1]

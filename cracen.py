@@ -1,10 +1,8 @@
 import os
 from hashlib import md5
-
 import telebot
 import logging
 import yaml
-from pymongo import MongoClient
 import re
 
 
@@ -22,16 +20,20 @@ with open("config.yml", 'r') as stream:
 bot = telebot.TeleBot(config['token'])
 
 
-def find_email(db_path: str, email: str) -> list:
+def find_passwords(db_path: str, email: str) -> list:
     h = md5(email.encode('utf-8')).hexdigest()[:5]
     result = list()
     if not os.path.exists(db_path + h):
         return result
     else:
+        stop_flag = False
         f = open(db_path + h, "r")
         for line in f.readlines():
-            if line.count(email) > 0:
+            if line.startswith(email) > 0:
+                stop_flag = True
                 result.append(line.split(';')[1])
+            elif stop_flag:
+                break
         f.close()
     return result
 
@@ -49,12 +51,12 @@ def get_text_messages(message):
     try:
         m = re.search(r"(^[a-zA-ZА-я0-9_.+-]+@[a-zA-ZА-я0-9-]+\.[a-zA-ZА-я0-9-.]+$)", str(message.text).strip())
         if m:
-            emails = find_email('data' + os.sep, m.group())
-            if emails.count() > 0:
-                for email in emails:
-                    bot.send_message(message.from_user.id, hide_password(email['password']))
+            passwords = find_passwords('data' + os.sep, m.group())
+            if len(passwords) > 0:
+                for password in passwords:
+                    bot.send_message(message.from_user.id, hide_password(password))
             else:
-                bot.send_message(message.from_user.id, "Этой почты нет в моей базе утечек")
+                bot.send_message(message.from_user.id, "Этого нет в моей базе утечек.")
         else:
             bot.send_message(message.from_user.id, "Этот текст \"%s\" не похож на волшебное слово." % message.text)
     except Exception as e:
